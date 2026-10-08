@@ -1,0 +1,108 @@
+rules_version = '2';
+// Meadows Lingo security rules.
+// Paste this whole file into Firebase console → Firestore Database → Rules → Publish.
+// IMPORTANT: the owner email below must match ownerEmail in js/config.js,
+// and the student domain in isStudentAcct() must match studentDomain there.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function OWNER() { return 'husseinylaura@gmail.com'; }
+
+    function signedIn() { return request.auth != null && request.auth.token.email is string; }
+    function myEmail() { return request.auth.token.email.lower(); }
+    function verified() { return request.auth.token.email_verified == true; }
+
+    // ---------- students: a 6-character code, signed in as <code>@students.meadowslingo.app
+    function isStudentAcct() { return signedIn() && myEmail().matches('^[a-z0-9]{6}@students[.]meadowslingo[.]app$'); }
+    function myCode() { return myEmail().split('@')[0]; }
+    function codeDoc(code) { return get(/databases/$(database)/documents/codes/$(code)); }
+    function isStudentIn(cid) {
+      return isStudentAcct()
+        && exists(/databases/$(database)/documents/codes/$(myCode()))
+        && codeDoc(myCode()).data.classId == cid
+        && codeDoc(myCode()).data.active == true;
+    }
+    function isActiveStudent(code) {
+      return isStudentAcct() && myCode() == code
+        && exists(/databases/$(database)/documents/codes/$(code))
+        && codeDoc(code).data.active == true;
+    }
+
+    // ---------- staff: email + password, email must be verified
+    function staffPath() { return /databases/$(database)/documents/staff/$(myEmail()); }
+    function isStaff() {
+      return signedIn() && !isStudentAcct() && verified()
+        && exists(staffPath()) && get(staffPath()).data.active == true;
+    }
+    function isOwner() { return signedIn() && verified() && myEmail() == OWNER(); }
+    function isAdmin() { return isOwner() || (isStaff() && get(staffPath()).data.role == 'admin'); }
+    function teaches(cid) {
+      return isStaff()
+        && exists(/databases/$(database)/documents/classes/$(cid))
+        && myEmail() in get(/databases/$(database)/documents/classes/$(cid)).data.teacherEmails;
+    }
+    function staffOf(cid) { return isAdmin() || teaches(cid); }
+
+    // ---------- collections
+    match /staff/{email} {
+      allow get: if isAdmin() || (signedIn() && verified() && myEmail() == email);
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+    }
+
+    match /codes/{code} {
+      // a student can only look up their own code, after signing in with it
+      allow get: if (isStudentAcct() && myCode() == code) || isAdmin();
+      allow list, write: if isAdmin();
+    }
+
+    match /classes/{cid} {
+      allow get: if staffOf(cid) || isStudentIn(cid);
+      allow list: if isAdmin();
+      allow write: if isAdmin();
+
+      match /students/{code} {
+        allow get: if staffOf(cid) || (isStudentIn(cid) && myCode() == code);
+        allow list: if staffOf(cid);
+        allow write: if isAdmin();
+      }
+
+      match /homework/{id} {
+        allow read: if staffOf(cid) || isStudentIn(cid);
+        allow create, update: if staffOf(cid)
+          && request.resource.data.title is string && request.resource.data.title.size() <= 120
+          && request.resource.data.activity is string;
+        allow delete: if staffOf(cid);
+      }
+
+      match /attempts/{id} {
+        allow read: if staffOf(cid);
+        allow create: if isStudentIn(cid)
+          && request.resource.data.code == myCode()
+          && request.resource.data.score is number && request.resource.data.total is number
+          && request.resource.data.score >= 0 && request.resource.data.score <= request.resource.data.total
+          && request.resource.data.total <= 200;
+        allow update, delete: if isAdmin();
+      }
+    }
+
+    match /progress/{code} {
+      allow get: if isActiveStudent(code)
+        || isAdmin()
+        || (exists(/databases/$(database)/documents/codes/$(code)) && teaches(codeDoc(code).data.classId));
+      allow create, update: if isAdmin()
+        || (isActiveStudent(code) && request.resource.data.classId == codeDoc(code).data.classId);
+      allow delete: if isAdmin();
+    }
+
+    match /units/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+
+    match /resources/{id} {
+      allow read: if signedIn();
+      allow write: if isAdmin();
+    }
+  }
+}
