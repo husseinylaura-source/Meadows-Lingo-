@@ -210,7 +210,7 @@ function drawClass(C, cls) {
     const recent = C.attempts.slice(0, 60);
     t.innerHTML = `<div class="card stack"><h3>Recent activity</h3>
      ${recent.length ? `<div class="scroll"><table class="data"><thead><tr><th>When</th><th>Student</th><th>Activity</th><th>Score</th></tr></thead><tbody>
-      ${recent.map(a => `<tr><td class="small">${esc(fmtDT(a.at))}</td><td class="name">${esc(a.name)}</td><td>${esc(KIND[a.kind] || a.kind)}: ${esc(a.title)}${a.ended ? ` <span class="pill red">${esc(a.ended)}</span>` : ""}</td><td>${a.score}/${a.total} ${pctHtml(P(a))}</td></tr>`).join("")}
+      ${recent.map(a => `<tr><td class="small">${esc(fmtDT(a.at))}</td><td class="name">${esc(a.name)}</td><td>${esc(KIND[a.kind] || a.kind)}: ${esc(a.title)}${a.writing ? `<details class="small" style="margin-top:4px"><summary style="cursor:pointer">Read their writing (${String(a.writing).trim().split(/\s+/).length} words)</summary><div class="ar" dir="rtl" lang="ar" style="white-space:pre-wrap;font-size:1.1rem;line-height:1.9;padding:8px 0">${esc(a.writing)}</div></details>` : ""}${a.ended ? ` <span class="pill red">${esc(a.ended)}</span>` : ""}</td><td>${a.score}/${a.total} ${pctHtml(P(a))}</td></tr>`).join("")}
      </tbody></table></div>` : `<div class="empty">Nothing yet. Activity shows up here as soon as students finish a lesson or quiz.</div>`}</div>`;
   }
 }
@@ -226,7 +226,7 @@ function studentDlg(C, cls, code) {
    ${C.homework.length ? `<div class="stack" style="gap:6px"><h3>Homework</h3>${C.homework.map(h => { const x = hwResult(C, r, h.id); return `<div class="row" style="justify-content:space-between"><span>${esc(h.title)}</span><span>${x ? `${x.score}/${x.total} ${pctHtml(x.pct)} <span class="small muted">${fmtDay(x.at)}${x.tries > 1 ? ` · ${x.tries} tries` : ""}</span>` : '<span class="muted small">Not done</span>'}</span></div>`; }).join("")}</div>` : ""}
    ${topMiss.length ? `<div class="stack" style="gap:6px"><h3>Often wrong</h3><div class="chips">${topMiss.map(m => `<span class="chip"><span class="ar" style="color:var(--ink);font-size:1.1rem">${esc(m.answer)}</span>${m.meaning ? `<span class="small muted">${esc(m.meaning)}</span>` : ""}${m.n > 1 ? `<span class="pill red">×${m.n}</span>` : ""}</span>`).join("")}</div></div>` : ""}
    <div class="stack" style="gap:6px"><h3>All activity <span class="small muted" style="font-weight:400">(last 4 months)</span></h3>
-    ${mine.length ? `<div class="scroll"><table class="data"><thead><tr><th>When</th><th>Activity</th><th>Score</th><th>Time</th></tr></thead><tbody>${mine.map(a => `<tr><td class="small">${esc(fmtDT(a.at))}</td><td>${esc(KIND[a.kind] || a.kind)}: ${esc(a.title)}</td><td>${a.score}/${a.total} ${pctHtml(P(a))}</td><td class="small">${a.secs ? Math.max(1, Math.round(a.secs / 60)) + " min" : ""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">No activity yet.</p>`}
+    ${mine.length ? `<div class="scroll"><table class="data"><thead><tr><th>When</th><th>Activity</th><th>Score</th><th>Time</th></tr></thead><tbody>${mine.map(a => `<tr><td class="small">${esc(fmtDT(a.at))}</td><td>${esc(KIND[a.kind] || a.kind)}: ${esc(a.title)}${a.writing ? `<details class="small" style="margin-top:4px"><summary style="cursor:pointer">Read their writing (${String(a.writing).trim().split(/\s+/).length} words)</summary><div class="ar" dir="rtl" lang="ar" style="white-space:pre-wrap;font-size:1.1rem;line-height:1.9;padding:8px 0">${esc(a.writing)}</div></details>` : ""}</td><td>${a.score}/${a.total} ${pctHtml(P(a))}</td><td class="small">${a.secs ? Math.max(1, Math.round(a.secs / 60)) + " min" : ""}</td></tr>`).join("")}</tbody></table></div>` : `<p class="muted">No activity yet.</p>`}
    </div>`);
 }
 
@@ -431,6 +431,7 @@ async function vContent(v) {
     ...units.filter(u => u.year === yr && !builtin.some(b => b.id === u.id)).map(u => ({ id: u.id, en: u.en, ar: u.ar, n: (u.words || []).length, status: u.hidden ? "Hidden" : "Custom", builtin: false }))];
   v.innerHTML = `<div class="stack">
    ${head("Admin", "Lessons and resources", "Edit the words and sentences in each topic, add new topics, and share past papers and links with students.")}
+   <div class="card row" style="justify-content:space-between"><div><h3>Your voice for listening</h3><p class="small muted">Record the listening texts, readings and words in your own voice. Students hear your recordings instead of the computer voice.</p></div><a class="btn primary" href="recorder.html">Open the voice recorder</a></div>
    <div class="card stack">
     <div class="row" style="justify-content:space-between"><h3>Topics</h3><button class="btn sm primary" id="newU">New topic</button></div>
     <div class="seg" role="group">${CURRICULUM.map(y => `<button data-cy="${y.id}" aria-pressed="${y.id === yr}">${y.label}</button>`).join("")}</div>

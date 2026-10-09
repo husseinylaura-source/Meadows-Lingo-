@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Voice Recorder · Meadows Lingo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&family=Readex+Pro:wght@400;500;600;700&family=Reem+Kufi:wght@500;700&display=swap">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<link rel="stylesheet" href="css/app.css">
+<style>
+ .rec-wrap{max-width:960px;margin:0 auto;padding:20px 16px 120px}
+ .rec-head{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;justify-content:space-between}
+ .rec-steps{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+ .rec-steps .card{padding:14px 16px}
+ .rec-steps .st{display:block;font-weight:600;margin-bottom:2px}
+ a.btn{text-decoration:none;color:inherit}
+ .item{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:start;padding:14px 16px;border-radius:16px;border:1px solid var(--line);background:var(--surface)}
+ .item.has{border-color:var(--good);box-shadow:inset 4px 0 0 var(--good)}
+ .item.long .it-ar{font-size:1.15rem;line-height:2}
+ .it-ar{font-size:1.5rem;line-height:1.7;text-align:right}
+ .it-meta{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:4px}
+ .it-ctl{display:flex;gap:6px;align-items:center;flex-wrap:wrap;justify-content:flex-end}
+ .rec-btn{width:52px;height:52px;border-radius:50%;border:0;background:#e0484f;color:#fff;display:grid;place-items:center;box-shadow:0 3px 0 #9f2c25}
+ .rec-btn.on{animation:pulse 1s infinite;background:#b3202a}
+ @keyframes pulse{50%{box-shadow:0 0 0 10px rgba(224,72,79,.25),0 3px 0 #9f2c25}}
+ .rec-btn svg{width:22px;height:22px}
+ .group-h{position:sticky;top:0;z-index:5;background:var(--bg);padding:10px 0 6px;display:flex;justify-content:space-between;align-items:center;gap:10px}
+ .bar{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));z-index:30}
+ .bar .in{max-width:960px;margin:0 auto;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+ .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+ select{padding:8px 12px;border-radius:12px;border:1px solid var(--line);background:var(--surface)}
+ .hint{font-size:.85rem;color:var(--muted)}
+ .warn{background:var(--bad-soft);color:var(--bad-deep);padding:12px 14px;border-radius:12px}
+</style>
+</head>
+<body>
+<div class="rec-wrap stack">
+ <div class="rec-head">
+  <div class="stack" style="gap:4px"><div class="eyebrow">Meadows Lingo · Teacher tool</div><h2>Record your voice for the listening parts</h2>
+   <p class="muted" style="max-width:62ch">Record each text in your own voice. Students then hear you instead of the computer voice. Recordings are kept in this browser until you download them, so you can do a few at a time.</p></div>
+  <a class="btn" href="staff.html">Back to the dashboard</a>
+ </div>
+
+ <div class="rec-steps">
+  <div class="card"><span class="st">1. Record</span><span class="small muted">Press the red button, read the text, press it again to stop. Play it back and re-record if you like.</span></div>
+  <div class="card"><span class="st">2. Download</span><span class="small muted">Press <b>Download recordings</b>. You get one .zip file.</span></div>
+  <div class="card"><span class="st">3. Upload to GitHub</span><span class="small muted">Unzip it. In your repository open <b>audio/voice</b>, choose <b>Add file → Upload files</b>, drag in everything from the zip (including manifest.json) and commit.</span></div>
+ </div>
+ <div id="warn"></div>
+
+ <div class="filters">
+  <label class="small">Year <select id="fy"></select></label>
+  <label class="small">Theme <select id="ft"></select></label>
+  <label class="small">Show <select id="fk">
+   <option value="texts">Listening and reading texts</option>
+   <option value="all">Texts, sentences and words</option>
+   <option value="sentences">Sentences only</option>
+   <option value="words">Words only</option>
+  </select></label>
+  <label class="small"><input type="checkbox" id="fmissing"> Only ones I haven't recorded</label>
+ </div>
+ <div id="list" class="stack" style="gap:10px"></div>
+</div>
+<div class="bar"><div class="in"><span id="count" class="small">Loading…</span><div class="row"><label class="btn sm" style="cursor:pointer">Upload a file for the selected text<input type="file" id="upl" accept="audio/*" hidden></label><button class="btn primary" id="dl">Download recordings</button></div></div></div>
+<div class="toast" id="toast" hidden></div>
+
+<script src="js/data.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lamejs/1.2.1/lame.min.js"></script>
+<script>
+/* Same text key as the app (js/app.js akey): vowel marks removed, FNV-1a hash */
+const TASHKEEL=/[ً-ْٰـ]/g;
+const plain=s=>String(s).replace(TASHKEEL,"");
+function akey(t){t=plain(String(t)).trim();let h=2166136261;for(const c of t){h^=c.codePointAt(0);h=Math.imul(h,16777619)}return(h>>>0).toString(16)}
+const $=s=>document.querySelector(s);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+function toast(m){const t=$("#toast");t.textContent=m;t.hidden=false;clearTimeout(toast._t);toast._t=setTimeout(()=>t.hidden=true,2600)}
+
+/* ---------- everything students can hear ---------- */
+const ITEMS=[];const seen=new Set();
+CURRICULUM.forEach(y=>y.units.forEach(u=>{
+ const add=(kind,label,text)=>{if(!text)return;const k=akey(text);if(seen.has(k))return;seen.add(k);ITEMS.push({k,kind,label,text,year:y.id,yearLabel:y.label,unit:u.id,unitEn:u.en,unitAr:u.ar})};
+ if(u.listening)add("text","Listening text",u.listening.text);
+ if(u.reading)add("text","Reading text",u.reading.text);
+ if(u.writing&&u.writing.model)add("text","Model answer (writing)",u.writing.model);
+ u.sentences.forEach(s=>add("sentence","Sentence",s[0]));
+ u.words.forEach(w=>add("word","Word · "+w[2],w[0]));
+}));
+
+/* ---------- storage: IndexedDB keeps recordings between visits ---------- */
+let DB;
+function openDb(){return new Promise((res,rej)=>{const r=indexedDB.open("ml-voice",1);r.onupgradeneeded=()=>r.result.createObjectStore("clips");r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+const tx=(mode,fn)=>new Promise((res,rej)=>{const t=DB.transaction("clips",mode),s=t.objectStore("clips");const out=fn(s);t.oncomplete=()=>res(out&&out.result);t.onerror=()=>rej(t.error)});
+const putClip=(k,blob)=>tx("readwrite",s=>s.put(blob,k));
+const delClip=k=>tx("readwrite",s=>s.delete(k));
+const getClip=k=>tx("readonly",s=>s.get(k));
+const allKeys=()=>tx("readonly",s=>s.getAllKeys());
+let HAVE=new Set();
+
+/* ---------- convert any recording to MP3 so every phone and browser can play it ---------- */
+async function toMp3(blob){
+ const ac=new (window.AudioContext||window.webkitAudioContext)();
+ const buf=await ac.decodeAudioData(await blob.arrayBuffer());
+ const ch=buf.numberOfChannels,len=buf.length,rate=buf.sampleRate;
+ const mono=new Float32Array(len);for(let c=0;c<ch;c++){const d=buf.getChannelData(c);for(let i=0;i<len;i++)mono[i]+=d[i]/ch}
+ // trim silence at both ends and normalise the volume a little
+ let a=0,b=len-1;const th=0.015;while(a<len&&Math.abs(mono[a])<th)a++;while(b>a&&Math.abs(mono[b])<th)b--;
+ a=Math.max(0,a-Math.round(rate*.15));b=Math.min(len-1,b+Math.round(rate*.25));
+ let peak=0;for(let i=a;i<=b;i++)peak=Math.max(peak,Math.abs(mono[i]));const gain=peak>0?Math.min(4,.92/peak):1;
+ const pcm=new Int16Array(b-a+1);for(let i=a;i<=b;i++){const v=Math.max(-1,Math.min(1,mono[i]*gain));pcm[i-a]=v<0?v*32768:v*32767}
+ const enc=new lamejs.Mp3Encoder(1,rate,96),parts=[];
+ for(let i=0;i<pcm.length;i+=1152){const m=enc.encodeBuffer(pcm.subarray(i,i+1152));if(m.length)parts.push(m)}
+ const end=enc.flush();if(end.length)parts.push(end);ac.close&&ac.close();
+ return new Blob(parts,{type:"audio/mpeg"});
+}
+
+/* ---------- recording ---------- */
+let REC=null,SELECTED=null,PLAYER=null;
+const MIC='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 15a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v6a3 3 0 0 0 3 3zm5-3a5 5 0 0 1-10 0H5a7 7 0 0 0 6 6.9V21h2v-2.1A7 7 0 0 0 19 12z"/></svg>';
+const STOP='<svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>';
+async function startRec(k,btn){
+ if(REC){return stopRec()}
+ let stream;try{stream=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true}})}catch(e){toast("Allow the microphone in your browser to record");return}
+ const mr=new MediaRecorder(stream);const chunks=[];mr.ondataavailable=e=>e.data.size&&chunks.push(e.data);
+ mr.onstop=async()=>{stream.getTracks().forEach(t=>t.stop());btn.classList.remove("on");btn.innerHTML=MIC;
+  try{const mp3=await toMp3(new Blob(chunks,{type:mr.mimeType}));await putClip(k,mp3);HAVE.add(k);toast("Saved");draw()}catch(e){console.error(e);toast("Couldn't save that recording. Try again.")}};
+ REC={mr,k};SELECTED=k;mr.start();btn.classList.add("on");btn.innerHTML=STOP;
+}
+function stopRec(){if(REC){REC.mr.stop();REC=null}}
+async function play(k){const b=await getClip(k);if(!b)return;if(PLAYER)PLAYER.pause();PLAYER=new Audio(URL.createObjectURL(b));PLAYER.play()}
+
+/* ---------- list ---------- */
+function filtered(){const y=$("#fy").value,t=$("#ft").value,kind=$("#fk").value,miss=$("#fmissing").checked;
+ return ITEMS.filter(i=>(!y||i.year===y)&&(!t||i.unit===t)&&(kind==="all"||(kind==="texts"&&i.kind==="text")||(kind==="sentences"&&i.kind==="sentence")||(kind==="words"&&i.kind==="word"))&&(!miss||!HAVE.has(i.k)))}
+function draw(){
+ const L=filtered();let html="",last="";
+ L.slice(0,400).forEach(i=>{if(i.unit!==last){last=i.unit;html+=`<div class="group-h"><div><div class="eyebrow">${esc(i.yearLabel)}</div><b>${esc(i.unitEn)}</b> <span class="ar">${esc(i.unitAr)}</span></div></div>`}
+  const has=HAVE.has(i.k);
+  html+=`<div class="item ${has?"has":""} ${i.kind==="text"?"long":""}" data-k="${i.k}"><div style="min-width:0"><div class="ar it-ar">${esc(i.text).replace(/\n/g,"<br>")}</div>
+   <div class="it-meta"><span class="pill ${has?"good":""}">${has?"Recorded":"Not recorded"}</span><span class="small muted">${esc(i.label)}</span></div></div>
+   <div class="it-ctl"><button class="rec-btn" data-rec="${i.k}" aria-label="Record">${MIC}</button>${has?`<button class="btn sm" data-play="${i.k}">Play</button><button class="btn sm ghost" data-del="${i.k}">Delete</button>`:""}</div></div>`});
+ if(L.length>400)html+=`<p class="small muted">Showing the first 400. Choose a year or theme to see the rest.</p>`;
+ if(!L.length)html=`<div class="card muted">Nothing to record here.</div>`;
+ $("#list").innerHTML=html;
+ const tot=ITEMS.length,texts=ITEMS.filter(i=>i.kind==="text"),tHave=texts.filter(i=>HAVE.has(i.k)).length;
+ $("#count").innerHTML=`<b>${HAVE.size}</b> recorded · texts ${tHave}/${texts.length} · everything ${[...HAVE].filter(k=>seen.has(k)).length}/${tot}`;
+ document.querySelectorAll("[data-rec]").forEach(b=>b.onclick=()=>startRec(b.dataset.rec,b));
+ document.querySelectorAll("[data-play]").forEach(b=>b.onclick=()=>play(b.dataset.play));
+ document.querySelectorAll("[data-del]").forEach(b=>b.onclick=async()=>{if(!confirm("Delete this recording?"))return;await delClip(b.dataset.del);HAVE.delete(b.dataset.del);draw()});
+ document.querySelectorAll(".item").forEach(el=>el.onclick=e=>{if(e.target.closest("button"))return;SELECTED=el.dataset.k;document.querySelectorAll(".item").forEach(x=>x.style.outline=x===el?"3px solid var(--accent)":"");});
+}
+function fillThemes(){const y=$("#fy").value;$("#ft").innerHTML=`<option value="">All themes</option>`+CURRICULUM.filter(x=>!y||x.id===y).flatMap(x=>x.units).map(u=>`<option value="${u.id}">${esc(u.en)}</option>`).join("")}
+
+$("#upl").onchange=async e=>{const f=e.target.files[0];e.target.value="";if(!f)return;if(!SELECTED){toast("Tap a text first, then upload its file");return}
+ try{const mp3=/mpeg|mp3/.test(f.type)?f:await toMp3(f);await putClip(SELECTED,mp3);HAVE.add(SELECTED);draw();toast("Saved")}catch(err){toast("That file couldn't be read")}};
+
+$("#dl").onclick=async()=>{
+ if(!HAVE.size){toast("Record something first");return}
+ const zip=new JSZip();let manifest={files:{}};
+ try{const r=await fetch("audio/voice/manifest.json",{cache:"no-cache"});if(r.ok){const m=await r.json();if(m&&m.files)manifest.files=m.files}}catch(e){}
+ for(const k of HAVE){const b=await getClip(k);if(!b)continue;const name=k+".mp3";zip.file(name,b);manifest.files[k]=name}
+ manifest.note="Recordings made with recorder.html. Each entry maps a text key to a file in this folder.";manifest.updated=new Date().toISOString().slice(0,10);
+ zip.file("manifest.json",JSON.stringify(manifest,null,1));
+ const blob=await zip.generateAsync({type:"blob"});const a=document.createElement("a");a.href=URL.createObjectURL(blob);a.download="meadows-lingo-voice.zip";a.click();
+ toast("Downloaded. Upload everything in it to audio/voice on GitHub.");
+};
+
+(async()=>{
+ if(!window.MediaRecorder||!navigator.mediaDevices){$("#warn").innerHTML=`<div class="warn">This browser can't record. Use Chrome, Edge or Safari on a laptop or phone.</div>`}
+ if(!window.JSZip||!window.lamejs){$("#warn").innerHTML+=`<div class="warn">Part of this page didn't load. Check the internet connection and refresh.</div>`}
+ DB=await openDb();HAVE=new Set(await allKeys());
+ $("#fy").innerHTML=`<option value="">All years</option>`+CURRICULUM.map(y=>`<option value="${y.id}">${esc(y.label)}</option>`).join("");
+ $("#fy").onchange=()=>{fillThemes();draw()};["#ft","#fk","#fmissing"].forEach(s=>$(s).onchange=draw);
+ fillThemes();draw();
+})();
+</script>
+</body>
+</html>

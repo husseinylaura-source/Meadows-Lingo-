@@ -7,11 +7,13 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Naskh+Arabic:wght@400;600;700&family=Readex+Pro:wght@400;500;600;700&family=Reem+Kufi:wght@500;700&display=swap">
+<link rel="icon" type="image/png" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
 <link rel="stylesheet" href="css/app.css">
 <link rel="stylesheet" href="css/portal.css">
 </head>
 <body>
-<header class="top"><div class="wrap"><div class="brand"><span class="logo" aria-hidden="true">ع</span><span class="name">Meadows Lingo</span><span class="ar brand-ar">تعلّم العربية</span></div></div></header>
+<header class="top"><div class="wrap"><div class="brand"><img class="logo-img" src="img/logo-mark.png" alt="" width="40" height="40"><span class="name">Meadows Lingo</span><span class="ar brand-ar">تعلّم العربية</span></div></div></header>
 <main class="wrap" style="padding-top:28px">
   <div id="demo" class="demo-banner" hidden></div>
   <div id="view"><div class="card muted">Loading…</div></div>
@@ -36,7 +38,8 @@ if (B.DEMO) {
 }
 
 function page() {
-  $("#view").innerHTML = `<div class="hero-ar ar" style="text-align:center">أهلا وسهلا</div>
+  $("#view").innerHTML = `<div class="portal-logo"><img src="img/logo.png" alt="Meadows Lingo · Arabic B" width="320"></div>
+  <div class="hero-ar ar" style="text-align:center">أهلا وسهلا</div>
   <h1 class="portal-title">Welcome to Meadows Lingo</h1>
   <div class="portal">
    <section class="card stack portal-card">
